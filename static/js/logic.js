@@ -21,6 +21,9 @@ var queryUrl = "https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/all_we
 
 d3.json(queryUrl).then(function(data) {
 
+  // Filter data for significant earthquakes only
+  var filteredData = data.features.filter(feature => feature.properties.mag > 2.5);
+
   // Define functions for style, color, and radius
   function mapStyle(feature) {
     return {
@@ -51,7 +54,7 @@ d3.json(queryUrl).then(function(data) {
   // Use MarkerClusterGroup for clustering
   var markers = L.markerClusterGroup();
 
-  L.geoJson(data, {
+  L.geoJson(filteredData, {
     pointToLayer: function(feature, latlng) {
       return L.circleMarker(latlng);
     },
@@ -81,4 +84,30 @@ d3.json(queryUrl).then(function(data) {
   };
 
   legend.addTo(myMap);
+});
+
+// Lazy load markers dynamically
+myMap.on("moveend", function() {
+  var bounds = myMap.getBounds();
+  d3.json(queryUrl).then(function(data) {
+    var filteredData = data.features.filter(feature => {
+      var lat = feature.geometry.coordinates[1];
+      var lng = feature.geometry.coordinates[0];
+      return bounds.contains([lat, lng]);
+    });
+
+    var markers = L.markerClusterGroup();
+    L.geoJson(filteredData, {
+      pointToLayer: function(feature, latlng) {
+        return L.circleMarker(latlng);
+      },
+      style: mapStyle,
+      onEachFeature: function(feature, layer) {
+        layer.bindPopup("<strong>Magnitude:</strong> " + feature.properties.mag +
+                        "<br><strong>Location:</strong> " + feature.properties.place);
+      }
+    }).addTo(markers);
+
+    myMap.addLayer(markers);
+  });
 });
